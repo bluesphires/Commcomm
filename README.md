@@ -12,6 +12,7 @@ This is a React.js conversion of the original PHP Commerzbank application, maint
 - **File upload**: Image file upload with validation
 - **Responsive design**: Mobile-friendly interface
 
+
 ## Project Structure
 
 ```
