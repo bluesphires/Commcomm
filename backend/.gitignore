@@ -1,0 +1,22 @@
+node_modules
+# Keep environment variables out of version control
+.env
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Old data files
+collected_data.json
+collected_data_backup_*.json
+
+# Migration scripts (no longer needed)
+migrate-data.js
+migrate-to-postgres.js
+
+# Old generated Prisma client
+/generated/prisma
+
+# Backup directories
+old_data_backup/

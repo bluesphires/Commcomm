@@ -21,3 +21,19 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Old data files
+collected_data.json
+collected_data_backup_*.json
+
+# Migration scripts (no longer needed)
+migrate-data.js
+migrate-to-postgres.js
+
+# Backup directories
+old_data_backup/
