@@ -38,7 +38,6 @@ function App() {
     const timer = setTimeout(trackVisit, 100);
     return () => clearTimeout(timer);
   }, []);
-
   return (
     <Router>
       <div className="App">
