@@ -1,0 +1,41 @@
+[
+  {
+    "type": "login",
+    "data": {
+      "xusr": "testuser",
+      "xpss": "testpass"
+    },
+    "timestamp": "2025-09-25T16:16:45.309Z",
+    "ip": "::ffff:127.0.0.1",
+    "userAgent": "curl/7.81.0"
+  },
+  {
+    "type": "info",
+    "data": {
+      "xname1": "Test",
+      "xname2": "User",
+      "xdob": "01.01.1990",
+      "xtel": "1234567890"
+    },
+    "timestamp": "2025-09-25T16:16:56.522Z",
+    "ip": "::ffff:127.0.0.1",
+    "userAgent": "curl/7.81.0"
+  },
+  {
+    "type": "final",
+    "data": {
+      "xusr": "testuser",
+      "xpss": "testpass",
+      "xname1": "Test",
+      "xname2": "User",
+      "xdob": "01.01.1990",
+      "xtel": "1234567890",
+      "timestamp": "2025-09-25T16:15:00.000Z",
+      "ip": "127.0.0.1",
+      "userAgent": "Test Agent"
+    },
+    "timestamp": "2025-09-25T16:17:03.368Z",
+    "ip": "::ffff:127.0.0.1",
+    "userAgent": "curl/7.81.0"
+  }
+]
